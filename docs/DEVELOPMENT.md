@@ -4,24 +4,59 @@
 
 - [Nix](https://nixos.org/download/)
 - [Docker](https://docs.docker.com/get-docker/)
+- [direnv](https://direnv.net/) (recommended)
 
-Enable flakes (one-time):
+### One-time Nix setup
+
 ```bash
+# Enable flakes
 mkdir -p ~/.config/nix
 echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+
+# (Optional) Add GitHub token to avoid rate limiting
+echo "access-tokens = github.com=ghp_your_token" >> ~/.config/nix/nix.conf
 ```
 
 ## Setup
 
+### Option A: direnv (recommended)
+
 ```bash
-nix develop
+direnv allow    # auto-loads nix dev shell when you cd into the project
 ```
 
-That's it. Dev shell provides Python 3.12, ruff, pytest, all runtime deps, docker, node. No global installs needed.
+### Option B: manual
+
+```bash
+nix develop     # enter dev shell
+```
+
+Both give you Python 3.12, ruff, pytest, all runtime deps, docker, node.
+
+## Editor Setup
+
+### VSCode
+
+Install two extensions:
+
+1. **Nix IDE** (`jnoortheen.nix-ide`) — `.nix` syntax support
+2. **direnv** (`mkhl.direnv`) — auto-loads Nix dev shell environment
+
+That's it. With direnv, VSCode automatically picks up the correct Python interpreter, ruff, and all tools. No manual interpreter path config needed.
+
+### Other editors
+
+Any editor with direnv support works the same way:
+
+- **Neovim**: [direnv.vim](https://github.com/direnv/direnv.vim)
+- **Emacs**: [envrc](https://github.com/purcell/envrc)
+- **JetBrains**: [Direnv integration plugin](https://plugins.jetbrains.com/plugin/15285-direnv-integration)
+
+Without direnv, run `nix develop` in your terminal and launch the editor from there.
 
 ## Dev Shell
 
-`nix develop` gives you:
+`nix develop` / direnv gives you:
 
 | Tool | Purpose |
 |------|---------|
@@ -92,7 +127,7 @@ nix build .#claude-code       # agent closure
 
 Standard Python debugging — works with any IDE.
 
-**VSCode** `.vscode/launch.json`:
+**VSCode**: create `.vscode/launch.json`:
 ```json
 {
   "version": "0.2.0",
@@ -138,20 +173,15 @@ docker run -d --name hnix-debug \
 
 Server waits for debugger to attach before starting.
 
-**2. VSCode attach** `.vscode/launch.json`:
+**2. VSCode attach** — add to `.vscode/launch.json`:
 ```json
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Attach to Docker",
-      "type": "debugpy",
-      "request": "attach",
-      "connect": { "host": "localhost", "port": 5678 },
-      "pathMappings": [
-        { "localRoot": "${workspaceFolder}/runtime/hnix", "remoteRoot": "/debug-src/hnix" }
-      ]
-    }
+  "name": "Attach to Docker",
+  "type": "debugpy",
+  "request": "attach",
+  "connect": { "host": "localhost", "port": 5678 },
+  "pathMappings": [
+    { "localRoot": "${workspaceFolder}/runtime/hnix", "remoteRoot": "/debug-src/hnix" }
   ]
 }
 ```
@@ -172,7 +202,7 @@ docker run -d --name agent-debug \
 ```
 
 - **Deps**: Nix closure (stable, no rebuild)
-- **Source**: volume mount (edit → immediate effect)
+- **Source**: volume mount (edit -> immediate effect)
 - **Debug**: IDE attach via port 5678
 
 ## Adding a New Agent
