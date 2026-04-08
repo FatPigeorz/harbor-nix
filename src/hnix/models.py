@@ -31,6 +31,14 @@ class UploadResponse(BaseModel):
     size: int
 
 
+class RunRequest(BaseModel):
+    agent_input: dict
+
+
+class RunResponse(BaseModel):
+    result: dict
+
+
 # ── Deployment ────────────────────────────────────────────────────
 
 

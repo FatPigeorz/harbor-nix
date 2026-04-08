@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from hnix.models import ExecRequest, ExecResponse, HealthResponse, UploadResponse
+from hnix.models import ExecRequest, ExecResponse, HealthResponse, RunRequest, RunResponse, UploadResponse
 
 
 class RuntimeClient:
@@ -42,6 +42,13 @@ class RuntimeClient:
             except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
                 await asyncio.sleep(interval)
         raise TimeoutError(f"hnix server not alive after {timeout}s")
+
+    async def run(self, agent_input: dict) -> dict:
+        """Call the agent's run() function inside the sandbox."""
+        req = RunRequest(agent_input=agent_input)
+        r = await self._client.post("/run", json=req.model_dump())
+        r.raise_for_status()
+        return RunResponse.model_validate(r.json()).result
 
     async def exec(
         self,

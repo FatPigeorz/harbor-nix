@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 
 from hnix import __version__
-from hnix.models import ExecRequest, ExecResponse, HealthResponse, UploadResponse
+from hnix.models import (
+    ExecRequest, ExecResponse,
+    HealthResponse,
+    RunRequest, RunResponse,
+    UploadResponse,
+)
 from hnix.runtime.executor import Executor
 
 logger = logging.getLogger("hnix.runtime")
@@ -17,10 +24,43 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 app = FastAPI(title="hnix", version=__version__)
 executor = Executor()
 
+# Agent runner — loaded once at startup from /opt/hnix/agent/runner.py
+_agent_runner = None
+
+
+@app.on_event("startup")
+async def _load_agent_runner():
+    global _agent_runner
+    runner_path = Path("/opt/hnix/agent/runner.py")
+    if runner_path.exists():
+        spec = importlib.util.spec_from_file_location("agent_runner", runner_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _agent_runner = module
+        logger.info("Loaded agent runner from %s", runner_path)
+    else:
+        logger.warning("No agent runner found at %s", runner_path)
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(version=__version__)
+
+
+@app.post("/run", response_model=RunResponse)
+async def run_agent(req: RunRequest):
+    """Run the agent's run() function with agent_input."""
+    if _agent_runner is None:
+        raise HTTPException(status_code=503, detail="No agent runner loaded")
+    if not hasattr(_agent_runner, "run"):
+        raise HTTPException(status_code=503, detail="Agent runner has no run() function")
+
+    try:
+        result = await _agent_runner.run(req.agent_input)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return RunResponse(result=result)
 
 
 @app.post("/exec", response_model=ExecResponse)
