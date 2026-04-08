@@ -22,7 +22,7 @@ async def run(agent_input: dict) -> dict
 - 返回 `dict`，格式由 agent 自定义
 - API key 等敏感信息通过 `agent_input` 传入，不依赖环境变量
 
-Runtime server 启动时从 `/opt/hnix/agent/runner.py` 加载，orchestrator 通过 `POST /run` 调用。
+Runtime server 启动时从 `/opt/agentix/agent/runner.py` 加载，orchestrator 通过 `POST /run` 调用。
 
 ## default.nix
 

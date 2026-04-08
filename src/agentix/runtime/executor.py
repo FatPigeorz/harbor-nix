@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 
-logger = logging.getLogger("hnix.runtime")
+logger = logging.getLogger("agentix.runtime")
 
 
 class Executor:

@@ -1,5 +1,5 @@
 {
-  description = "harbor-nix: Coding Agent SDK — Nix-based agent packaging and sandboxed execution";
+  description = "agentix: Coding Agent SDK — Nix-based agent packaging and sandboxed execution";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -46,7 +46,7 @@
         ];
 
         shellHook = ''
-          echo "harbor-nix dev shell"
+          echo "agentix dev shell"
           echo "  python: $(python3 --version)"
           echo "  uv:     $(uv --version)"
           echo "  ruff:   $(ruff --version)"
@@ -56,7 +56,7 @@
           echo "  ruff check runtime/        # lint"
           echo "  ruff format runtime/       # format"
           echo "  pytest                     # test"
-          echo "  python -m hnix             # run runtime server locally"
+          echo "  python -m agentix             # run runtime server locally"
           echo "  nix build .#runtime        # build runtime closure"
           echo "  nix build .#claude-code    # build agent closure"
         '';

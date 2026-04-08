@@ -5,7 +5,7 @@ let
   pythonPkgs = python.pkgs;
 in
 pythonPkgs.buildPythonApplication {
-  pname = "hnix-runtime";
+  pname = "agentix-runtime";
   version = "0.1.0";
   format = "pyproject";
 
@@ -23,5 +23,5 @@ pythonPkgs.buildPythonApplication {
 
   doCheck = false;
 
-  meta.description = "hnix runtime server";
+  meta.description = "agentix runtime server";
 }

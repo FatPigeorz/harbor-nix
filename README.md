@@ -1,4 +1,4 @@
-# harbor-nix
+# agentix
 
 Coding Agent SDK: Nix-based agent packaging and sandboxed execution.
 
@@ -7,7 +7,7 @@ Coding Agent SDK: Nix-based agent packaging and sandboxed execution.
 ```
 Host                              Sandbox
  │                                 │
- │  nix build .#claude-code        │  hnix-server (:8000)
+ │  nix build .#claude-code        │  agentix-server (:8000)
  │  nix build .#runtime            │  ├── POST /run    ← run agent
  │                                 │  ├── POST /exec   ← run command
  │  deployment.create(config)      │  ├── POST /upload
@@ -30,7 +30,7 @@ AGENT=$(nix-build agents/claude-code/default.nix --no-out-link)
 docker run -d --name sandbox \
   -v /nix/store:/nix/store:ro \
   -e "PATH=${AGENT}/bin:${RUNTIME}/bin:/usr/bin:/bin" \
-  -p 8000:8000 ubuntu:24.04 $RUNTIME/bin/hnix-server
+  -p 8000:8000 ubuntu:24.04 $RUNTIME/bin/agentix-server
 
 curl -X POST localhost:8000/run \
   -H "Content-Type: application/json" \
@@ -40,7 +40,7 @@ curl -X POST localhost:8000/run \
 ## Structure
 
 ```
-src/hnix/
+src/agentix/
 ├── runtime/           server (sandbox) + client (host)
 ├── deployment/        sandbox CRUD (docker, k8s, ...)
 └── models.py

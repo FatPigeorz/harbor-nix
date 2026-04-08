@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from hnix.models import SandboxConfig, SandboxInfo
+from agentix.models import SandboxConfig, SandboxInfo
 
 
 class Deployment(ABC):
@@ -24,7 +24,7 @@ class Deployment(ABC):
         2. Inject runtime closure
         3. Inject agent closure
         4. Set PATH
-        5. Start hnix-server
+        5. Start agentix-server
 
         Returns SandboxInfo with runtime_url for HTTP communication.
         """

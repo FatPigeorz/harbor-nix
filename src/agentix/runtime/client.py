@@ -1,4 +1,4 @@
-"""Async HTTP client for the hnix runtime server.
+"""Async HTTP client for the agentix runtime server.
 
 Runs on the orchestrator side (outside the sandbox).
 """
@@ -10,11 +10,11 @@ from pathlib import Path
 
 import httpx
 
-from hnix.models import ExecRequest, ExecResponse, HealthResponse, RunRequest, RunResponse, UploadResponse
+from agentix.models import ExecRequest, ExecResponse, HealthResponse, RunRequest, RunResponse, UploadResponse
 
 
 class RuntimeClient:
-    """Async client for the hnix runtime server."""
+    """Async client for the agentix runtime server."""
 
     def __init__(self, base_url: str, timeout: float = 300):
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
@@ -41,7 +41,7 @@ class RuntimeClient:
                 return
             except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
                 await asyncio.sleep(interval)
-        raise TimeoutError(f"hnix server not alive after {timeout}s")
+        raise TimeoutError(f"agentix server not alive after {timeout}s")
 
     async def run(self, agent_input: dict) -> dict:
         """Call the agent's run() function inside the sandbox."""

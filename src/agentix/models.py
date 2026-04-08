@@ -1,4 +1,4 @@
-"""Shared models for hnix runtime, client, and deployment."""
+"""Shared models for agentix runtime, client, and deployment."""
 
 from __future__ import annotations
 
@@ -44,11 +44,11 @@ class RunResponse(BaseModel):
 
 class SandboxConfig(BaseModel):
     task_image: str = Field(description="Docker image for the task environment")
-    runtime_closure: str = Field(description="Nix store path for hnix runtime")
+    runtime_closure: str = Field(description="Nix store path for agentix runtime")
     agent_closure: str = Field(description="Nix store path for agent")
 
 
 class SandboxInfo(BaseModel):
     sandbox_id: str
-    runtime_url: str = Field(description="hnix-server URL, e.g. http://localhost:18000")
+    runtime_url: str = Field(description="agentix-server URL, e.g. http://localhost:18000")
     status: str = "running"

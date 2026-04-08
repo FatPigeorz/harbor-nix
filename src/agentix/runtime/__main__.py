@@ -1,4 +1,4 @@
-"""Entry point: python -m hnix.runtime [--port 8000] [--debug]"""
+"""Entry point: python -m agentix.runtime [--port 8000] [--debug]"""
 
 import argparse
 
@@ -6,7 +6,7 @@ import uvicorn
 
 
 def main():
-    parser = argparse.ArgumentParser(description="hnix runtime server")
+    parser = argparse.ArgumentParser(description="agentix runtime server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", type=int, default=8000, help="Bind port")
     parser.add_argument("--debug", action="store_true", help="Enable debugpy")
@@ -24,7 +24,7 @@ def main():
             debugpy.wait_for_client()
             print("Debugger attached.")
 
-    uvicorn.run("hnix.runtime.server:app", host=args.host, port=args.port)
+    uvicorn.run("agentix.runtime.server:app", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

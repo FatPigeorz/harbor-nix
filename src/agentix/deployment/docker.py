@@ -6,10 +6,10 @@ import asyncio
 import logging
 from uuid import uuid4
 
-from hnix.deployment.base import Deployment
-from hnix.models import SandboxConfig, SandboxInfo
+from agentix.deployment.base import Deployment
+from agentix.models import SandboxConfig, SandboxInfo
 
-logger = logging.getLogger("hnix.deployment.docker")
+logger = logging.getLogger("agentix.deployment.docker")
 
 
 class DockerDeployment(Deployment):
@@ -23,7 +23,7 @@ class DockerDeployment(Deployment):
         self._sandboxes: dict[str, _DockerSandbox] = {}
 
     async def create(self, config: SandboxConfig) -> SandboxInfo:
-        sandbox_id = f"hnix-{uuid4().hex[:8]}"
+        sandbox_id = f"agentix-{uuid4().hex[:8]}"
         port = self._next_port
         self._next_port += 1
 
@@ -34,7 +34,7 @@ class DockerDeployment(Deployment):
             "-e", f"PATH={config.agent_closure}/bin:{config.runtime_closure}/bin:/usr/local/bin:/usr/bin:/bin",
             "-p", f"{port}:8000",
             config.task_image,
-            f"{config.runtime_closure}/bin/hnix-server", "--port", "8000",
+            f"{config.runtime_closure}/bin/agentix-server", "--port", "8000",
         ]
 
         proc = await asyncio.create_subprocess_exec(

@@ -71,7 +71,7 @@ Without direnv, run `nix develop` in your terminal and launch the editor from th
 ### Run runtime server locally
 
 ```bash
-python -m hnix
+python -m agentix
 # Server at http://localhost:8000
 ```
 
@@ -81,12 +81,12 @@ python -m hnix
 RUNTIME=$(nix-build runtime/default.nix --no-out-link)
 AGENT=$(nix-build agents/claude-code/default.nix --no-out-link)
 
-docker run -d --name hnix-dev \
+docker run -d --name agentix-dev \
   -v /nix/store:/nix/store:ro \
   -e "PATH=${AGENT}/bin:${RUNTIME}/bin:/usr/bin:/bin" \
   -p 8000:8000 \
   ubuntu:24.04 \
-  $RUNTIME/bin/hnix-server
+  $RUNTIME/bin/agentix-server
 
 # Test
 curl http://localhost:8000/health
@@ -95,7 +95,7 @@ curl -X POST http://localhost:8000/exec \
   -d '{"command": "claude --version"}'
 
 # Cleanup
-docker rm -f hnix-dev
+docker rm -f agentix-dev
 ```
 
 ### Lint & Format
@@ -123,7 +123,7 @@ nix build .#claude-code       # agent closure
 
 ## Debugging
 
-hnix-server 内置 debugpy 支持，与部署方式无关（Docker、K8s、Daytona、Modal 都一样）。
+agentix-server 内置 debugpy 支持，与部署方式无关（Docker、K8s、Daytona、Modal 都一样）。
 
 ### 原理
 
@@ -133,19 +133,19 @@ IDE (VSCode/PyCharm/...)
   │  DAP protocol over TCP
   │
   ▼
-sandbox:5678  ← debugpy (hnix-server 内置)
-sandbox:8000  ← hnix-server HTTP API
+sandbox:5678  ← debugpy (agentix-server 内置)
+sandbox:8000  ← agentix-server HTTP API
 ```
 
-hnix-server 启动时加 `--debug` 就会启动 debugpy 监听。Deployment 层只需要多暴露 5678 端口。
+agentix-server 启动时加 `--debug` 就会启动 debugpy 监听。Deployment 层只需要多暴露 5678 端口。
 
 ### 启动 debug 模式
 
 ```bash
 # 沙箱内 (不管是什么 deployment)
-hnix-server --debug                    # debugpy 在 5678 监听
-hnix-server --debug --debug-wait       # 等 IDE attach 后才启动
-hnix-server --debug --debug-port 9229  # 自定义端口
+agentix-server --debug                    # debugpy 在 5678 监听
+agentix-server --debug --debug-wait       # 等 IDE attach 后才启动
+agentix-server --debug --debug-port 9229  # 自定义端口
 ```
 
 ### 端口暴露 (Deployment 层的事)
@@ -165,10 +165,10 @@ hnix-server --debug --debug-port 9229  # 自定义端口
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "hnix-server (local)",
+      "name": "agentix-server (local)",
       "type": "debugpy",
       "request": "launch",
-      "module": "hnix",
+      "module": "agentix",
       "cwd": "${workspaceFolder}/runtime",
       "args": ["--port", "8000"]
     },
@@ -178,7 +178,7 @@ hnix-server --debug --debug-port 9229  # 自定义端口
       "request": "attach",
       "connect": { "host": "localhost", "port": 5678 },
       "pathMappings": [
-        { "localRoot": "${workspaceFolder}/runtime/hnix", "remoteRoot": "/debug-src/hnix" }
+        { "localRoot": "${workspaceFolder}/runtime/agentix", "remoteRoot": "/debug-src/agentix" }
       ]
     }
   ]
@@ -189,7 +189,7 @@ hnix-server --debug --debug-port 9229  # 自定义端口
 
 **pdb** (terminal):
 ```bash
-python -m pdb -m hnix
+python -m pdb -m agentix
 ```
 
 ### Whitebox agent debugging

@@ -1,4 +1,4 @@
-# harbor-nix 项目规划
+# agentix 项目规划
 
 ## 核心定位
 
@@ -15,8 +15,8 @@
 │  ├── OS + 代码仓库 + 数据集                           │
 │  └── tests/test.sh                                   │
 │                                                      │
-│  Runtime               (harbor-nix 提供)              │
-│  └── hnix-server (Python/FastAPI, port 8000)          │
+│  Runtime               (agentix 提供)              │
+│  └── agentix-server (Python/FastAPI, port 8000)          │
 │      ├── GET  /health                                │
 │      ├── POST /load         加载 agent closure        │
 │      ├── POST /exec         执行命令                  │
@@ -35,7 +35,7 @@
 │                                                      │
 └──────────────────────────────────────────────────────┘
 
-外部 orchestrator 通过 HTTP 与 hnix-server 通信
+外部 orchestrator 通过 HTTP 与 agentix-server 通信
 ```
 
 ### 三个独立环境
@@ -43,8 +43,8 @@
 | 环境 | 谁提供 | 内容 | 变化频率 |
 |------|--------|------|---------|
 | **Task** | Benchmark adapter | OS + 代码 + 测试 | 每个 benchmark 不同 |
-| **Runtime** | harbor-nix | hnix-server + Python deps | 很少变 |
-| **Agent** | harbor-nix | agent binary + deps (+ source for whitebox) | 跟 agent 版本走 |
+| **Runtime** | agentix | agentix-server + Python deps | 很少变 |
+| **Agent** | agentix | agent binary + deps (+ source for whitebox) | 跟 agent 版本走 |
 
 三者独立打包：N tasks × 1 runtime × M agents，不产生组合爆炸。
 
@@ -65,7 +65,7 @@
 | 沙箱类型 | 方式 |
 |---------|------|
 | 本地 Docker / K8s | `-v /nix/store:/nix/store:ro` |
-| Daytona / Modal / E2B | tarball upload via hnix-server API |
+| Daytona / Modal / E2B | tarball upload via agentix-server API |
 
 ### Whitebox Dev 模式
 
@@ -83,9 +83,9 @@
 
 ### P0: Runtime server
 
-- [x] hnix-server (FastAPI): /health, /load, /exec, /upload, /upload-and-load
+- [x] agentix-server (FastAPI): /health, /load, /exec, /upload, /upload-and-load
 - [x] Nix 打包 runtime
-- [x] Client library (hnix.client.HnixClient)
+- [x] Client library (agentix.client.HnixClient)
 - [x] End-to-end 验证 (mount + upload 路径)
 
 ### P1: Agent 打包
@@ -109,7 +109,7 @@
 ### P2: 工具链
 
 - CI/CD: agent 版本更新自动 nix build + push to cache
-- 脚手架: `harbor-nix init <agent-name>` 生成 flake.nix 模板
+- 脚手架: `agentix init <agent-name>` 生成 flake.nix 模板
 - Export 工具: closure → tarball 导出脚本
 
 ## 不做的事

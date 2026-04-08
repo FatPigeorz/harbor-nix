@@ -1,4 +1,4 @@
-# harbor-nix 版本管理与存储方案
+# agentix 版本管理与存储方案
 
 ## 概述
 
@@ -79,7 +79,7 @@ nix build .#claude-code                  # 从 cache 秒取 (已构建过)
 ┌─────────────────────────────────────────────────────┐
 │  Layer 1: Nix Binary Cache (S3-backed)              │
 │                                                     │
-│  s3://harbor-nix-cache/                             │
+│  s3://agentix-cache/                             │
 │  ├── nar/sha256-xxx.nar.xz      # 每个 store path  │
 │  └── narinfo/xxx.narinfo         # 元数据           │
 │                                                     │
@@ -92,13 +92,13 @@ nix build .#claude-code                  # 从 cache 秒取 (已构建过)
 ┌─────────────────────────────────────────────────────┐
 │  Layer 2: OCI Registry / Object Storage             │
 │                                                     │
-│  s3://harbor-nix-artifacts/                         │
+│  s3://agentix-artifacts/                         │
 │  ├── runtime/0.1.0/closure.tar.gz                   │
 │  ├── agents/claude-code/2.1.96/closure.tar.gz       │
 │  └── agents/claude-code/2.1.96/metadata.json        │
 │                                                     │
 │  或 OCI:                                            │
-│  registry.example.com/harbor-nix/claude-code:2.1.96 │
+│  registry.example.com/agentix/claude-code:2.1.96 │
 │                                                     │
 │  用途: 云沙箱 (Daytona/Modal) 下载 tarball           │
 │        没有 Nix 的环境直接 tar xzf                   │
@@ -137,27 +137,27 @@ jobs:
       - run: nix build .#${{ matrix.agent }}
 
       # 2. 推送到 Nix binary cache
-      - run: nix copy --to s3://harbor-nix-cache .#${{ matrix.agent }}
+      - run: nix copy --to s3://agentix-cache .#${{ matrix.agent }}
 
       # 3. 导出 tarball + 推送到 S3
       - run: |
           scripts/export-closure.sh .#${{ matrix.agent }} \
             out/${{ matrix.agent }}.tar.gz
           aws s3 cp out/${{ matrix.agent }}.tar.gz \
-            s3://harbor-nix-artifacts/agents/${{ matrix.agent }}/$(nix eval .#${{ matrix.agent }}.version)/
+            s3://agentix-artifacts/agents/${{ matrix.agent }}/$(nix eval .#${{ matrix.agent }}.version)/
 
       # 4. (可选) 推送到 OCI registry
       - run: |
           nix build .#${{ matrix.agent }}-image
-          docker push registry.example.com/harbor-nix/${{ matrix.agent }}:latest
+          docker push registry.example.com/agentix/${{ matrix.agent }}:latest
 
   # 构建 runtime (只在 runtime/ 变更时)
   build-runtime:
     steps:
       - run: nix build .#runtime
-      - run: nix copy --to s3://harbor-nix-cache .#runtime
+      - run: nix copy --to s3://agentix-cache .#runtime
       - run: scripts/export-closure.sh .#runtime out/runtime.tar.gz
-      - run: aws s3 cp out/runtime.tar.gz s3://harbor-nix-artifacts/runtime/$(nix eval .#runtime.version)/
+      - run: aws s3 cp out/runtime.tar.gz s3://agentix-artifacts/runtime/$(nix eval .#runtime.version)/
 ```
 
 ### CI 触发策略
@@ -176,8 +176,8 @@ jobs:
 ```bash
 # 配置 cache (一次性)
 nix.conf:
-  substituters = https://cache.nixos.org s3://harbor-nix-cache
-  trusted-public-keys = harbor-nix:xxx
+  substituters = https://cache.nixos.org s3://agentix-cache
+  trusted-public-keys = agentix:xxx
 
 # 使用: 自动从 cache 拉取, 不用本地 build
 nix build .#claude-code    # 秒完成 (cache hit)
@@ -196,8 +196,8 @@ docker run -v /nix/store:/nix/store:ro ...
 
 ```bash
 # 从 S3 下载 tarball
-aws s3 cp s3://harbor-nix-artifacts/agents/claude-code/2.1.96/closure.tar.gz .
-# 通过 hnix-server API 上传到沙箱
+aws s3 cp s3://agentix-artifacts/agents/claude-code/2.1.96/closure.tar.gz .
+# 通过 agentix-server API 上传到沙箱
 curl -X POST http://sandbox:8000/upload-and-load \
   -F file=@closure.tar.gz \
   -F closure_store_path=/nix/store/xxx-claude-code-runtime-2.1.96
@@ -213,20 +213,20 @@ nix flake show
 nix eval .#claude-code.version
 
 # 查看 S3 上已构建的版本
-aws s3 ls s3://harbor-nix-artifacts/agents/claude-code/
+aws s3 ls s3://agentix-artifacts/agents/claude-code/
 
 # 查看 cache 中是否有某个 closure
-nix path-info --store s3://harbor-nix-cache .#claude-code
+nix path-info --store s3://agentix-cache .#claude-code
 ```
 
 ## 6. 目录结构
 
 ```
-harbor-nix/
+agentix/
 ├── flake.nix                  # 顶层: 注册所有 agent + runtime
 ├── flake.lock                 # 锁定 nixpkgs
 ├── runtime/
-│   ├── hnix/                  # Python runtime server
+│   ├── agentix/                  # Python runtime server
 │   ├── pyproject.toml
 │   └── default.nix            # runtime Nix 打包
 ├── agents/
