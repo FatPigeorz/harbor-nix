@@ -1,9 +1,4 @@
-"""hnix runtime server.
-
-Runs inside the sandbox. Three endpoints: upload, download, exec.
-Closures are already in place (mounted or extracted by the deployment layer).
-PATH is set at process startup.
-"""
+"""FastAPI server running inside the sandbox."""
 
 from __future__ import annotations
 
@@ -13,19 +8,14 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 
 from hnix import __version__
-from hnix.models import (
-    ExecRequest,
-    ExecResponse,
-    HealthResponse,
-    UploadResponse,
-)
-from hnix.runtime import Runtime
+from hnix.models import ExecRequest, ExecResponse, HealthResponse, UploadResponse
+from hnix.runtime.executor import Executor
 
-logger = logging.getLogger("hnix")
+logger = logging.getLogger("hnix.runtime")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
 app = FastAPI(title="hnix", version=__version__)
-runtime = Runtime()
+executor = Executor()
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -35,7 +25,7 @@ async def health():
 
 @app.post("/exec", response_model=ExecResponse)
 async def exec_command(req: ExecRequest):
-    exit_code, stdout, stderr = await runtime.exec(
+    exit_code, stdout, stderr = await executor.exec(
         command=req.command,
         timeout=req.timeout,
         cwd=req.cwd,
@@ -50,14 +40,14 @@ async def upload(
     path: str = Form(...),
 ):
     data = await file.read()
-    size = runtime.upload(data, path)
+    size = executor.upload(data, path)
     return UploadResponse(path=path, size=size)
 
 
 @app.get("/download")
 async def download(path: str):
     try:
-        data = runtime.download(path)
+        data = executor.download(path)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Not found: {path}")
     return Response(content=data, media_type="application/octet-stream")

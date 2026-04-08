@@ -1,9 +1,5 @@
 { pkgs ? import <nixpkgs> {} }:
 
-# Nix packaging for hnix-runtime.
-# Development uses uv (pyproject.toml + uv.lock).
-# Nix build uses buildPythonApplication (reads the same pyproject.toml).
-
 let
   python = pkgs.python312;
   pythonPkgs = python.pkgs;
@@ -13,7 +9,7 @@ pythonPkgs.buildPythonApplication {
   version = "0.1.0";
   format = "pyproject";
 
-  src = ./.;
+  src = ./..;  # project root (pyproject.toml is there)
 
   nativeBuildInputs = [ pythonPkgs.hatchling ];
 
@@ -27,5 +23,5 @@ pythonPkgs.buildPythonApplication {
 
   doCheck = false;
 
-  meta.description = "harbor-nix runtime server";
+  meta.description = "hnix runtime server";
 }

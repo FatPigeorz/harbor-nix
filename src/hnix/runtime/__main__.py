@@ -1,4 +1,4 @@
-"""Entry point: python -m hnix [--host 0.0.0.0] [--port 8000] [--debug]"""
+"""Entry point: python -m hnix.runtime [--port 8000] [--debug]"""
 
 import argparse
 
@@ -9,9 +9,9 @@ def main():
     parser = argparse.ArgumentParser(description="hnix runtime server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", type=int, default=8000, help="Bind port")
-    parser.add_argument("--debug", action="store_true", help="Enable debugpy remote debugger")
-    parser.add_argument("--debug-port", type=int, default=5678, help="debugpy listen port")
-    parser.add_argument("--debug-wait", action="store_true", help="Wait for debugger to attach before starting")
+    parser.add_argument("--debug", action="store_true", help="Enable debugpy")
+    parser.add_argument("--debug-port", type=int, default=5678, help="debugpy port")
+    parser.add_argument("--debug-wait", action="store_true", help="Wait for debugger")
     args = parser.parse_args()
 
     if args.debug:
@@ -24,7 +24,7 @@ def main():
             debugpy.wait_for_client()
             print("Debugger attached.")
 
-    uvicorn.run("hnix.server:app", host=args.host, port=args.port)
+    uvicorn.run("hnix.runtime.server:app", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

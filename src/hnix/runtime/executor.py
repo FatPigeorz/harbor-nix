@@ -1,4 +1,4 @@
-"""Core runtime logic: command execution and file operations."""
+"""Command execution and file I/O inside a sandbox."""
 
 from __future__ import annotations
 
@@ -7,15 +7,14 @@ import logging
 import os
 from pathlib import Path
 
-logger = logging.getLogger("hnix")
+logger = logging.getLogger("hnix.runtime")
 
 
-class Runtime:
-    """Command execution and file I/O inside a sandbox.
+class Executor:
+    """Runs commands and handles files inside the sandbox.
 
     Sandbox-agnostic — doesn't know or care whether it's running
-    in Docker, Modal, Daytona, or bare metal. PATH and env are
-    set at process startup by the deployment layer.
+    in Docker, Modal, Daytona, or bare metal.
     """
 
     async def exec(
@@ -57,22 +56,14 @@ class Runtime:
         )
 
     def upload(self, data: bytes, dest: str) -> int:
-        """Write bytes to a path. Creates parent dirs.
-
-        Returns:
-            Number of bytes written.
-        """
+        """Write bytes to a path. Creates parent dirs."""
         p = Path(dest)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
         return len(data)
 
     def download(self, path: str) -> bytes:
-        """Read bytes from a path.
-
-        Raises:
-            FileNotFoundError: If path doesn't exist.
-        """
+        """Read bytes from a path."""
         p = Path(path)
         if not p.exists():
             raise FileNotFoundError(f"Not found: {path}")

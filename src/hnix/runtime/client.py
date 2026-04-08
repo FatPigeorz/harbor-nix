@@ -1,4 +1,4 @@
-"""Client for the hnix runtime server.
+"""Async HTTP client for the hnix runtime server.
 
 Runs on the orchestrator side (outside the sandbox).
 """
@@ -13,7 +13,7 @@ import httpx
 from hnix.models import ExecRequest, ExecResponse, HealthResponse, UploadResponse
 
 
-class HnixClient:
+class RuntimeClient:
     """Async client for the hnix runtime server."""
 
     def __init__(self, base_url: str, timeout: float = 300):
