@@ -1,15 +1,23 @@
-"""Agent plugin protocol.
+"""Agent adapter protocol.
 
 runner.py must export:
 
-    async def run(ctx: dict) -> dict
+    async def run(agent_input: AgentInput) -> Trajectory
 
-That's it. No imports required. ctx and return value are free-form dicts.
-Agentix helpers (RunResult, Trajectory) are optional conveniences.
+AgentInput is a TypedDict — adapters receive typed input, return ATIF trajectory.
 """
 
 from __future__ import annotations
 
-from typing import Callable, Coroutine, Any
+from typing import Callable, Coroutine, Any, TypedDict
 
-RunFn = Callable[[dict], Coroutine[Any, Any, dict]]
+from agentix.trajectory import Trajectory
+
+
+class AgentInput(TypedDict, total=False):
+    instruction: str          # required — task instruction
+    workdir: str              # required — working directory
+    env: dict[str, str]       # extra environment variables
+
+
+RunFn = Callable[[AgentInput], Coroutine[Any, Any, Trajectory]]
