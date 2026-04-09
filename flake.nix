@@ -11,22 +11,19 @@
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
       python = pkgs.python312;
-
-      # All agents from llm-agents.nix
       agentPkgs = llm-agents.packages.${system};
     in
     {
       # ── Packages ────────────────────────────────────────────────
       packages.${system} = {
-        # Agentix runtime
+        # Runtime server
         runtime = import ./runtime/default.nix { inherit pkgs; };
 
-        # Agents from llm-agents.nix (re-exported)
-        claude-code = agentPkgs.claude-code or (import ./agents/claude-code/default.nix { inherit pkgs; });
-        codex = agentPkgs.codex or null;
-        aider = agentPkgs.aider or null;
-        goose = agentPkgs.goose-cli or null;
-        gemini-cli = agentPkgs.gemini-cli or null;
+        # Agent plugins: llm-agents.nix binary + our runner.py
+        claude-code = import ./agents/claude-code/default.nix {
+          inherit pkgs;
+          claude-code-bin = agentPkgs.claude-code;
+        };
       };
 
       # ── Dev shell ───────────────────────────────────────────────
@@ -52,10 +49,9 @@
           echo "  ruff:   $(ruff --version)"
           echo ""
           echo "Commands:"
-          echo "  python -m agentix.runtime    # run runtime server"
-          echo "  ruff check agentix/          # lint"
-          echo "  nix build .#runtime          # build runtime"
-          echo "  nix build .#claude-code      # build agent (via llm-agents.nix)"
+          echo "  python -m agentix.runtime --plugin <path>   # run server"
+          echo "  nix build .#runtime                         # build runtime"
+          echo "  nix build .#claude-code                     # build plugin"
         '';
       };
     };

@@ -1,4 +1,4 @@
-"""Entry point: python -m agentix.runtime [--port 8000] [--debug]"""
+"""Entry point: python -m agentix.runtime --plugin /path/to/plugin [--port 8000]"""
 
 import argparse
 
@@ -7,6 +7,7 @@ import uvicorn
 
 def main():
     parser = argparse.ArgumentParser(description="agentix runtime server")
+    parser.add_argument("--plugin", required=True, help="Path to agent plugin (dir with runner.py + bin/)")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", type=int, default=8000, help="Bind port")
     parser.add_argument("--debug", action="store_true", help="Enable debugpy")
@@ -14,9 +15,12 @@ def main():
     parser.add_argument("--debug-wait", action="store_true", help="Wait for debugger")
     args = parser.parse_args()
 
+    # Load plugin before starting server
+    from agentix.runtime.server import load_plugin
+    load_plugin(args.plugin)
+
     if args.debug:
         import debugpy
-
         debugpy.listen(("0.0.0.0", args.debug_port))
         print(f"debugpy listening on 0.0.0.0:{args.debug_port}")
         if args.debug_wait:

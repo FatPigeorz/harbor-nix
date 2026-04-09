@@ -24,6 +24,7 @@ class ExecResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
+    plugin: str | None = None
 
 
 class UploadResponse(BaseModel):
