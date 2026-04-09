@@ -13,14 +13,6 @@ Agentix packages coding agents as reproducible **Nix closures** and injects them
 
 ---
 
-## The Problem
-
-You want to evaluate **N agents** on **M benchmarks**. Without Agentix, you build N x M custom setups. With Agentix:
-
-- Package each agent **once** as a Nix closure
-- Inject into **any** benchmark Docker image at runtime
-- Collect results through a **universal HTTP interface**
-
 ## Core Ideas
 
 **Any Agent** — Claude Code, Codex, Aider, SWE-agent, OpenHands. Each agent is a self-contained Nix closure (binary + all deps + Python adapter).
