@@ -1,6 +1,6 @@
 """Claude Code agent adapter.
 
-Calls the claude CLI binary, parses output, returns ATIF Trajectory.
+Calls the claude CLI binary, parses output, returns AgentOutput.
 """
 
 from __future__ import annotations
@@ -9,14 +9,12 @@ import asyncio
 import json
 import os
 import shlex
-import uuid
 from datetime import datetime, timezone
 
-from agentix.agents.protocol import AgentInput
-from agentix.trajectory import AgentInfo, Trajectory, Step, Metrics, FinalMetrics
+from agentix.agents.protocol import AgentInput, AgentOutput, Step
 
 
-async def run(agent_input: AgentInput) -> Trajectory:
+async def run(agent_input: AgentInput) -> AgentOutput:
     instruction = agent_input["instruction"]
     workdir = agent_input.get("workdir", os.getcwd())
     extra_env = agent_input.get("env", {})
@@ -45,35 +43,34 @@ async def run(agent_input: AgentInput) -> Trajectory:
     )
 
     try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
         proc.kill()
         await proc.communicate()
-        stdout, stderr = b"", f"Timed out after {timeout}s".encode()
+        return AgentOutput(exit_code=-1, stdout="", stderr=f"Timed out after {timeout}s")
 
-    session_id = uuid.uuid4().hex
-    trajectory = Trajectory(
-        session_id=session_id,
-        agent=AgentInfo(name="claude-code", version="0.1.0", model_name=model),
-    )
+    stdout = stdout_bytes.decode(errors="replace")
+    stderr = stderr_bytes.decode(errors="replace")
 
     # Parse claude JSON output into trajectory steps
-    raw = stdout.decode(errors="replace")
+    trajectory: list[Step] = []
     try:
-        data = json.loads(raw)
-        # Claude --output-format json returns structured output
-        trajectory.add_step(Step(
-            step_id=0,
+        data = json.loads(stdout)
+        trajectory.append(Step(
             timestamp=datetime.now(timezone.utc).isoformat(),
             source="agent",
-            message=data.get("result", raw),
+            message=data.get("result", stdout),
         ))
     except (json.JSONDecodeError, TypeError):
-        trajectory.add_step(Step(
-            step_id=0,
+        trajectory.append(Step(
             timestamp=datetime.now(timezone.utc).isoformat(),
             source="agent",
-            message=raw,
+            message=stdout,
         ))
 
-    return trajectory
+    return AgentOutput(
+        exit_code=proc.returncode or 0,
+        stdout=stdout,
+        stderr=stderr,
+        trajectory=trajectory,
+    )

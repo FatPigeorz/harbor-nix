@@ -1,3 +1,3 @@
-from agentix.agents.protocol import AgentInput, RunFn
+from agentix.agents.protocol import AgentInput, AgentOutput, RunFn, Step
 
-__all__ = ["AgentInput", "RunFn"]
+__all__ = ["AgentInput", "AgentOutput", "RunFn", "Step"]
