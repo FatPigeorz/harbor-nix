@@ -60,9 +60,9 @@ Agentix sits between the orchestrator and the sandbox. The **runtime server** pr
 | Component | Role |
 |-----------|------|
 | **Runtime Server** | FastAPI server inside sandbox — `/exec`, `/upload`, `/download`, `/health` |
-| **Agent Closure** | Nix package — agent binary + all deps + Python adapter |
+| **Agent Closure** | Nix package — agent binary + all deps (no Python adapter) |
 | **Deployment** | Sandbox lifecycle management — create, get, update, delete |
-| **Agent Adapter** | `runner.py` — calls CLI binary, returns `AgentOutput` with trajectory |
+| **Agent Adapter** | `runner.py` — orchestrator-side library, builds commands, parses output |
 
 ### Agent Adapter Protocol
 
