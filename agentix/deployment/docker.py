@@ -1,4 +1,9 @@
-"""Docker deployment: sandbox CRUD via local Docker."""
+"""Docker deployment: sandbox CRUD via local Docker.
+
+Uses a data container to share /nix/store with sandboxes.
+All closures (runtime, agent, dataset) live in /nix/store and
+are injected via --volumes-from.
+"""
 
 from __future__ import annotations
 
@@ -12,18 +17,58 @@ from agentix.models import SandboxConfig, SandboxInfo
 
 logger = logging.getLogger("agentix.deployment.docker")
 
+DEFAULT_DATA_CONTAINER = "agentix-nix"
+
 
 class DockerDeployment(Deployment):
     """Manages sandboxes as local Docker containers.
 
-    Injects closures via volume mount (-v /nix/store:/nix/store:ro).
-    After sandbox creation, closures are loaded via POST /load.
+    Injects closures via data container (--volumes-from agentix-nix:ro).
+    The data container exposes /nix/store as a volume.
     """
 
-    def __init__(self, host_port_start: int = 18000):
+    def __init__(
+        self,
+        host_port_start: int = 18000,
+        data_container: str = DEFAULT_DATA_CONTAINER,
+    ):
         self._next_port = host_port_start
         self._port_lock = asyncio.Lock()
         self._sandboxes: dict[str, _DockerSandbox] = {}
+        self._data_container = data_container
+
+    async def _ensure_data_container(self) -> None:
+        """Ensure the nix data container exists."""
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "inspect", self._data_container,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await proc.communicate()
+        if proc.returncode != 0:
+            # Create data container with /nix/store as volume
+            logger.info("Creating data container '%s'", self._data_container)
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "create",
+                "--name", self._data_container,
+                "-v", "/nix/store",
+                "busybox", "true",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to create data container: {stderr.decode(errors='replace')}"
+                )
+            # Copy host /nix/store into the data container's volume
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "cp", "/nix/store/.", f"{self._data_container}:/nix/store/",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+            logger.info("Data container '%s' created", self._data_container)
 
     async def _allocate_port(self) -> int:
         """Allocate an available port, safe under concurrent access."""
@@ -36,6 +81,8 @@ class DockerDeployment(Deployment):
                         return port
 
     async def create(self, config: SandboxConfig) -> SandboxInfo:
+        await self._ensure_data_container()
+
         sandbox_id = f"agentix-{uuid4().hex[:8]}"
         port = await self._allocate_port()
 
@@ -49,7 +96,7 @@ class DockerDeployment(Deployment):
             "docker", "run", "-d",
             "--name", sandbox_id,
             "--network", "host",
-            "-v", "/nix/store:/nix/store:ro",
+            "--volumes-from", f"{self._data_container}:ro",
             "-e", f"PATH={path_env}",
             config.task_image,
             f"{config.runtime_closure}/bin/agentix-server", "--port", str(port),
@@ -95,7 +142,7 @@ class DockerDeployment(Deployment):
                 for namespace, closure_path in config.closures.items():
                     r = await client.post("/load", json={"path": closure_path, "namespace": namespace})
                     if r.status_code == 200:
-                        logger.info("Loaded closure %s in sandbox %s", closure_path, sandbox_id)
+                        logger.info("Loaded closure %s as '%s'", closure_path, namespace)
                     else:
                         logger.error("Failed to load closure %s: %s", closure_path, r.text)
 
@@ -134,14 +181,10 @@ class DockerDeployment(Deployment):
         if config.closures != sb.config.closures:
             import httpx
             async with httpx.AsyncClient(base_url=f"http://localhost:{sb.port}", timeout=60) as client:
-                # Unload old closures
                 for namespace in sb.config.closures:
                     await client.post("/unload", json={"namespace": namespace})
-
-                # Load new closures
                 for namespace, closure_path in config.closures.items():
                     await client.post("/load", json={"path": closure_path, "namespace": namespace})
-
             sb.config = config
 
         return await self.get(sandbox_id)
