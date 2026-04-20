@@ -6,6 +6,8 @@ runtime scans /mnt and auto-loads on startup. No HTTP /load.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 # ── Closure manifest (returned by closure's GET /) ────────────────
@@ -90,7 +92,7 @@ class LsEntry(BaseModel):
     name: str
     is_dir: bool
     size: int
-    mtime: float
+    mtime: datetime
 
 
 # ── Deployment ────────────────────────────────────────────────────

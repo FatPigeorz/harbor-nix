@@ -36,12 +36,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
-from dataclasses import dataclass
 from uuid import uuid4
 
 import httpx
 
-from agentix.deployment.base import Deployment
+from agentix.deployment.base import Deployment, Sandbox
 from agentix.models import SandboxConfig, SandboxInfo
 
 logger = logging.getLogger("agentix.deployment.docker")
@@ -60,32 +59,24 @@ async def _docker(*args: str, check: bool = True) -> tuple[int, bytes, bytes]:
     return rc, stdout, stderr
 
 
-@dataclass
-class _SandboxState:
-    port: int
-    config: SandboxConfig
-
-
 class DockerDeployment(Deployment):
     """Sandbox CRUD via local Docker."""
 
-    def __init__(self, host_port_start: int = 18000):
-        self._next_port = host_port_start
-        self._port_lock = asyncio.Lock()
-        self._sandboxes: dict[str, _SandboxState] = {}
+    def __init__(self):
+        self._ports: dict[str, int] = {}  # sandbox_id → host port
         self._populated: dict[str, str] = {}  # image ref → named volume
         self._populate_lock = asyncio.Lock()
 
     # ── port ─────────────────────────────────────────────────────
 
-    async def _allocate_port(self) -> int:
-        async with self._port_lock:
-            while True:
-                port = self._next_port
-                self._next_port += 1
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    if s.connect_ex(("127.0.0.1", port)) != 0:
-                        return port
+    @staticmethod
+    def _allocate_port() -> int:
+        # Ask the kernel for any free TCP port. There's still a small
+        # TOCTOU window before the container binds, but no worse than a
+        # linear probe and without the seed parameter.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
 
     # ── populate one closure image into its named volume ────────
 
@@ -129,12 +120,12 @@ class DockerDeployment(Deployment):
 
     # ── create ───────────────────────────────────────────────────
 
-    async def create(self, config: SandboxConfig) -> SandboxInfo:
+    async def _create(self, config: SandboxConfig) -> Sandbox:
         if "runtime" in config.closures:
             raise ValueError("namespace 'runtime' is reserved for config.runtime")
 
         sandbox_id = f"agentix-{uuid4().hex[:8]}"
-        port = await self._allocate_port()
+        port = self._allocate_port()
 
         # Populate all closures in parallel (cached after first).
         pairs: list[tuple[str, str]] = [("runtime", config.runtime)]
@@ -168,16 +159,15 @@ class DockerDeployment(Deployment):
             "sh", "-c", entrypoint,
         )
 
-        info = SandboxInfo(
+        self._ports[sandbox_id] = port
+        logger.info("Created sandbox %s on port %d", sandbox_id, port)
+
+        await self._wait_healthy(port)
+        return Sandbox(
             sandbox_id=sandbox_id,
             runtime_url=f"http://localhost:{port}",
             status="running",
         )
-        self._sandboxes[sandbox_id] = _SandboxState(port=port, config=config)
-        logger.info("Created sandbox %s on port %d", sandbox_id, port)
-
-        await self._wait_healthy(port)
-        return info
 
     async def _wait_healthy(self, port: int) -> None:
         base_url = f"http://localhost:{port}"
@@ -192,11 +182,11 @@ class DockerDeployment(Deployment):
                 await asyncio.sleep(0.5)
         raise TimeoutError(f"Runtime server not alive at {base_url}")
 
-    # ── get / update / delete ────────────────────────────────────
+    # ── get / delete ─────────────────────────────────────────────
 
     async def get(self, sandbox_id: str) -> SandboxInfo:
-        state = self._sandboxes.get(sandbox_id)
-        if state is None:
+        port = self._ports.get(sandbox_id)
+        if port is None:
             raise KeyError(f"Sandbox not found: {sandbox_id}")
         rc, stdout, _ = await _docker(
             "inspect", "-f", "{{.State.Status}}", sandbox_id, check=False,
@@ -204,29 +194,11 @@ class DockerDeployment(Deployment):
         status = stdout.decode().strip() if rc == 0 else "unknown"
         return SandboxInfo(
             sandbox_id=sandbox_id,
-            runtime_url=f"http://localhost:{state.port}",
+            runtime_url=f"http://localhost:{port}",
             status=status,
         )
 
-    async def update(
-        self,
-        sandbox_id: str,
-        config: SandboxConfig,
-        *,
-        force_recreate: bool = False,
-    ) -> SandboxInfo:
-        state = self._sandboxes.get(sandbox_id)
-        if state is None:
-            raise KeyError(f"Sandbox not found: {sandbox_id}")
-        if force_recreate or config != state.config:
-            await self.delete(sandbox_id)
-            return await self.create(config)
-        return await self.get(sandbox_id)
-
     async def delete(self, sandbox_id: str) -> None:
         await _docker("rm", "-f", sandbox_id, check=False)
-        self._sandboxes.pop(sandbox_id, None)
+        self._ports.pop(sandbox_id, None)
         logger.info("Deleted sandbox %s", sandbox_id)
-
-    def active_sandboxes(self) -> list[str]:
-        return list(self._sandboxes.keys())
