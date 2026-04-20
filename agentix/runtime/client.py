@@ -1,6 +1,6 @@
 """Async HTTP client for the agentix runtime server.
 
-Wraps the runtime's root endpoints (exec/upload/download/ls, /closures,
+Wraps the runtime's built-in endpoints (run/upload/download/ls, /closures,
 /closures/{ns}/logs) as typed helpers, plus the generic
 `call(namespace, endpoint, ...)` for any closure in the sandbox.
 Closures are baked into the sandbox at create time — no /load/unload.
@@ -8,9 +8,7 @@ Closures are baked into the sandbox at create time — no /load/unload.
 
 from __future__ import annotations
 
-import asyncio
 import json
-import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -27,38 +25,14 @@ from agentix.models import (
     UploadResponse,
 )
 
-logger = logging.getLogger("agentix.runtime.client")
-
 
 class RuntimeClient:
     """Async client for the agentix runtime server."""
 
-    def __init__(
-        self,
-        base_url: str,
-        timeout: float = 300,
-        retries: int = 3,
-        retry_backoff: float = 1.0,
-    ):
+    def __init__(self, base_url: str, timeout: float = 300):
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
-        self._retries = retries
-        self._retry_backoff = retry_backoff
 
     # ── lifecycle ────────────────────────────────────────────────
-
-    async def _with_retry(self, fn, *args, **kwargs):
-        last_exc: Exception | None = None
-        for attempt in range(self._retries):
-            try:
-                return await fn(*args, **kwargs)
-            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as exc:
-                last_exc = exc
-                if attempt < self._retries - 1:
-                    wait = self._retry_backoff * (2 ** attempt)
-                    logger.warning("Retry %d/%d after %.1fs: %s", attempt + 1, self._retries, wait, exc)
-                    await asyncio.sleep(wait)
-        assert last_exc is not None
-        raise last_exc
 
     async def close(self):
         await self._client.aclose()
@@ -75,16 +49,6 @@ class RuntimeClient:
         r = await self._client.get("/health")
         r.raise_for_status()
         return HealthResponse.model_validate(r.json())
-
-    async def wait_until_alive(self, timeout: float = 60, interval: float = 0.5) -> None:
-        deadline = asyncio.get_event_loop().time() + timeout
-        while asyncio.get_event_loop().time() < deadline:
-            try:
-                await self.health()
-                return
-            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
-                await asyncio.sleep(interval)
-        raise TimeoutError(f"agentix server not alive after {timeout}s")
 
     async def closures(self) -> list[ClosureInfo]:
         r = await self._client.get("/closures")
@@ -106,19 +70,17 @@ class RuntimeClient:
         data: dict | None = None,
         method: str = "POST",
     ) -> Any:
-        """Call an endpoint on a loaded closure. Returns parsed JSON."""
+        """Call an endpoint on a mounted closure. Returns parsed JSON when the
+        closure responds with a JSON content-type; otherwise the raw text body.
+        """
         url = f"/{namespace}/{endpoint.lstrip('/')}"
-
-        async def _do():
-            if method.upper() == "GET":
-                r = await self._client.get(url, params=data)
-            else:
-                r = await self._client.request(method.upper(), url, json=data)
-            r.raise_for_status()
-            ctype = r.headers.get("content-type", "")
-            return r.json() if "json" in ctype else r.text
-
-        return await self._with_retry(_do)
+        if method.upper() == "GET":
+            r = await self._client.get(url, params=data)
+        else:
+            r = await self._client.request(method.upper(), url, json=data)
+        r.raise_for_status()
+        ctype = r.headers.get("content-type", "")
+        return r.json() if "json" in ctype else r.text
 
     async def call_stream(
         self,
@@ -158,7 +120,7 @@ class RuntimeClient:
             paths_from=paths_from,
         ).model_dump(exclude_none=True)
 
-    async def exec(
+    async def run(
         self,
         command: str,
         cwd: str | None = None,
@@ -167,21 +129,17 @@ class RuntimeClient:
         max_output: int | None = None,
         paths_from: list[str] | None = None,
     ) -> ExecResponse:
-        """Buffered exec: runs `command` and returns the full captured output.
+        """Buffered shell exec: run `command` and return the full captured output.
 
-        `paths_from` prepends the `bin/` of the listed loaded closures to PATH
-        for this command only. Pass `["*"]` for every currently-loaded closure.
+        `paths_from` prepends the `bin/` of the listed closures to PATH for
+        this command only. Pass `["*"]` to include every mounted closure.
         """
         body = self._exec_body(command, cwd, env, timeout, max_output, paths_from)
+        r = await self._client.post("/exec", json=body)
+        r.raise_for_status()
+        return ExecResponse.model_validate(r.json())
 
-        async def _do() -> ExecResponse:
-            r = await self._client.post("/exec", json=body)
-            r.raise_for_status()
-            return ExecResponse.model_validate(r.json())
-
-        return await self._with_retry(_do)
-
-    async def exec_stream(
+    async def run_stream(
         self,
         command: str,
         cwd: str | None = None,
@@ -210,30 +168,29 @@ class RuntimeClient:
                         yield event
 
     async def upload(self, local_path: str | Path, dest: str) -> UploadResponse:
+        """Upload a local file to `dest` inside the sandbox. `dest` must be
+        under the server's AGENTIX_UPLOAD_ROOT (default `/workspace`).
+        """
         p = Path(local_path)
-
-        async def _do() -> UploadResponse:
-            with open(p, "rb") as f:
-                r = await self._client.post(
-                    "/upload",
-                    files={"file": (p.name, f)},
-                    data={"path": dest},
-                )
-            r.raise_for_status()
-            return UploadResponse.model_validate(r.json())
-
-        return await self._with_retry(_do)
+        with open(p, "rb") as f:
+            r = await self._client.post(
+                "/upload",
+                files={"file": (p.name, f)},
+                data={"path": dest},
+            )
+        r.raise_for_status()
+        return UploadResponse.model_validate(r.json())
 
     async def download(self, path: str, local_path: str | Path) -> int:
-        async def _do():
-            r = await self._client.get("/download", params={"path": path})
-            r.raise_for_status()
-            lp = Path(local_path)
-            lp.parent.mkdir(parents=True, exist_ok=True)
-            lp.write_bytes(r.content)
-            return len(r.content)
-
-        return await self._with_retry(_do)
+        """Stream a sandbox file down to `local_path`. Paths are resolved under
+        AGENTIX_UPLOAD_ROOT on the server.
+        """
+        r = await self._client.get("/download", params={"path": path})
+        r.raise_for_status()
+        lp = Path(local_path)
+        lp.parent.mkdir(parents=True, exist_ok=True)
+        lp.write_bytes(r.content)
+        return len(r.content)
 
     async def ls(self, path: str) -> list[LsEntry]:
         r = await self._client.get("/ls", params={"path": path})

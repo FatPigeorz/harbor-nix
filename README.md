@@ -42,19 +42,18 @@ The template handles the rest: runs `nix-build`, gathers the closure of `/nix/st
 
 ```python
 import asyncio
-from agentix.deployment.docker import DockerDeployment
-from agentix.models import SandboxConfig
-from agentix.runtime.client import RuntimeClient
+from agentix import DockerDeployment, RuntimeClient, SandboxConfig
 
 async def main():
-    async with DockerDeployment() as deployment:
-        sandbox = await deployment.create(SandboxConfig(
-            image="ubuntu:24.04",
-            runtime="agentix/runtime:0.1.0",
-            closures={"echo": "agentix/mock-agent:0.1.0"},
-        ))
+    deployment = DockerDeployment()
+    config = SandboxConfig(
+        image="ubuntu:24.04",
+        runtime="agentix/runtime:0.1.0",
+        closures={"echo": "agentix/mock-agent:0.1.0"},
+    )
+    async with deployment.create(config) as sandbox:
         async with RuntimeClient(sandbox.runtime_url) as c:
-            print(await c.exec("uname -a"))
+            print(await c.run("uname -a"))
             print(await c.call("echo", "run", {"instruction": "hello"}))
 
 asyncio.run(main())

@@ -38,19 +38,18 @@ docker build -t agentix/mock-dataset:dev -f templates/closure-docker/Dockerfile 
 
 ```python
 import asyncio
-from agentix.deployment.docker import DockerDeployment
-from agentix.models import SandboxConfig
-from agentix.runtime.client import RuntimeClient
+from agentix import DockerDeployment, RuntimeClient, SandboxConfig
 
 async def main():
-    async with DockerDeployment() as d:
-        sb = await d.create(SandboxConfig(
-            image="ubuntu:24.04",
-            runtime="agentix/runtime:dev",
-            closures={"agent": "agentix/mock-agent:dev"},
-        ))
+    deployment = DockerDeployment()
+    config = SandboxConfig(
+        image="ubuntu:24.04",
+        runtime="agentix/runtime:dev",
+        closures={"agent": "agentix/mock-agent:dev"},
+    )
+    async with deployment.create(config) as sb:
         async with RuntimeClient(sb.runtime_url) as c:
-            print(await c.exec("uname -a"))
+            print(await c.run("uname -a"))
             print(await c.call("agent", "run", {"instruction": "hi"}))
 
 asyncio.run(main())
